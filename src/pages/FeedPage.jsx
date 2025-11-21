@@ -1,111 +1,76 @@
 import React, { useEffect, useState } from "react";
 import axios from "axios";
-import TopBar from "../components/TopBar";
-import BottomNav from "../components/BottomNav";
-import AddPostModal from "../components/AddPostModal";
-import PostCard from "../components/PostCard";
-import { Box } from "@mui/material";
+
+import { Box, Fab } from "@mui/material";
+import AddIcon from "@mui/icons-material/Add";
+import PostCard from "../components/PostCard.jsx";
 
 const FeedPage = () => {
   const [posts, setPosts] = useState([]);
-  const circleId = "691458e70454e9306bf21990"; // your circle ID
-  const userId = "6914b2543b0c318f5db0ae38"; // current logged-in user ID
+  const [openModal, setOpenModal] = useState(false);
+  const userId = "6914a40b3d9abd7785f81ac5"; // replace with actual logged-in user
 
   // Fetch posts
+  const fetchPosts = async () => {
+    try {
+      const res = await axios.get("http://localhost:5000/api/posts/circle/691458e70454e9306bf21990"); // replace circle_id dynamically if needed
+      // prepend full URL to media
+      const formattedPosts = res.data.posts.map(p => ({
+        ...p,
+        media_url: p.media_url ? `http://localhost:5000${p.media_url}` : null
+      }));
+      setPosts(formattedPosts);
+    } catch (err) {
+      console.error("Error fetching posts:", err);
+    }
+  };
+
   useEffect(() => {
-    const fetchPosts = async () => {
-      try {
-        const res = await axios.get(`http://localhost:5000/api/posts/circle/${circleId}`);
-        const formattedPosts = res.data.posts.map(post => ({
-          id: post._id,
-          username: post.user_id?.name || "Unknown",
-          avatarSrc: post.user_id?.profile_photo || "/default-avatar.png",
-          time: post.createdAt
-  ? new Date(post.createdAt).toLocaleString("en-IN", {
-      day: "2-digit",
-      month: "short",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    })
-  : "Unknown",
-
-
-          content: post.content,
-          image: post.media_url,
-          likes: post.likes.length,
-          likedByMe: post.likes.includes(userId),
-          comments: post.comments || [],
-          type: post.type,
-          pinned: post.pinned,
-        }));
-        setPosts(formattedPosts);
-      } catch (err) {
-        console.error("Error fetching posts:", err.response?.data || err.message);
-      }
-    };
-
     fetchPosts();
-  }, [circleId]);
+  }, []);
 
-  // Update a post's comments in state
+  // Update comments in state after adding comment/reply
   const updatePostComments = (postId, newComments) => {
-    setPosts(prevPosts =>
-      prevPosts.map(p => (p.id === postId ? { ...p, comments: newComments } : p))
+    setPosts(prev =>
+      prev.map(p => (p._id === postId ? { ...p, comments: newComments } : p))
     );
   };
 
+  // Remove post from state after deletion
+  const deletePostFromState = postId => {
+    setPosts(prev => prev.filter(p => p._id !== postId));
+  };
+
   return (
-    <>
-      <TopBar />
-      <Box
-        sx={{
-          display: "flex",
-          justifyContent: "center",
-          backgroundColor: "#fafafa",
-          minHeight: "100vh",
-          pb: "80px"
-        }}
+    <Box sx={{ width: "100%", maxWidth: 1000, mx: "auto", px: 2, pt: 2 }}>
+      {posts.map(post => (
+        <PostCard
+          key={post._id}
+          id={post._id}
+          username={post.user_id?.name}
+          avatarSrc={post.user_id?.profile_photo ? `http://localhost:5000${post.user_id.profile_photo}` : ""}
+          content={post.content}
+          image={post.media_url}
+          likes={post.likes}
+          comments={post.comments}
+          type={post.type}
+          pinned={post.pinned}
+          user_id={post.user_id?._id}
+          updatePostComments={updatePostComments}
+          deletePostFromState={deletePostFromState}
+        />
+      ))}
+
+      {/* Floating "+" button */}
+      <Fab
+        color="primary"
+        sx={{ position: "fixed", bottom: 80, right: 20, zIndex: 999 }}
+        onClick={() => setOpenModal(true)}
       >
-        <Box
-          sx={{
-            width: "100%",
-            maxWidth: { xs: 480, lg: "75%" },
-            mx: "auto",
-            py: 2,
-            display: "flex",
-            flexDirection: "column",
-            gap: 2
-          }}
-        >
-          {posts.map(post => (
-            <PostCard
-              key={post.id}
-              id={post.id}
-              username={post.username}
-              avatarSrc={post.avatarSrc}
-              time={post.time}
-              content={post.content}
-              image={post.image}
-              likes={post.likes}
-              likedByMe={post.likedByMe}
-              comments={post.comments}
-              type={post.type}
-              pinned={post.pinned}
-              updatePostComments={updatePostComments}
-            />
-          ))}
-        </Box>
-      </Box>
-
-     <AddPostModal
-  userId={userId}          // ✅ pass userId
-  circleId={circleId}
-  onPostCreated={newPost => setPosts(prev => [newPost, ...prev])}
-/>
-
-      <BottomNav />
-    </>
+        <AddIcon />
+      </Fab>
+      {/* AddPostModal should open when openModal = true */}
+    </Box>
   );
 };
 

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Card,
   CardHeader,
@@ -17,8 +17,6 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import CommentSection from './CommentSection';
 import axios from 'axios';
 
-const hasImage = (url) => url && url.trim() && url !== 'null' && url !== 'undefined';
-
 const PostCard = ({
   id,
   username,
@@ -26,27 +24,44 @@ const PostCard = ({
   avatarSrc,
   content,
   image,
-  likes,
-  comments,
-  type,
+  likes = [],
+  comments = [],
   pinned,
   user_id,
   updatePostComments,
-  deletePostFromState
+  deletePostFromState,
 }) => {
-  const [likeCount, setLikeCount] = useState(likes || 0);
-  const [liked, setLiked] = useState(false);
-  const [commentList, setCommentList] = useState(comments || []);
+  const userId = "6914a40b3d9abd7785f81ac5";
+
+  const [likeCount, setLikeCount] = useState(likes.length);
+  const [liked, setLiked] = useState(likes.includes(userId));
+  const [commentList, setCommentList] = useState(comments);
   const [commentText, setCommentText] = useState('');
   const [replyToCommentId, setReplyToCommentId] = useState(null);
   const [showComments, setShowComments] = useState(false);
-  const [showImage, setShowImage] = useState(hasImage(image));
+  const [imagePreview, setImagePreview] = useState('');
 
-  const userId = "6914a40b3d9abd7785f81ac5";
+  // Image preview handler
+  useEffect(() => {
+    if (!image) return;
 
+    if (image instanceof File) {
+      const url = URL.createObjectURL(image);
+      setImagePreview(url);
+      return () => URL.revokeObjectURL(url);
+    } else if (typeof image === "string") {
+      setImagePreview(image);
+    }
+  }, [image]);
+
+  // Like handler
   const handleLike = async () => {
     try {
-      const res = await axios.patch(`http://localhost:5000/api/posts/${id}/like`, { user_id: userId });
+      const res = await axios.patch(
+        `http://localhost:5000/api/posts/${id}/like`,
+        { user_id: userId }
+      );
+
       setLiked(res.data.post.likes.includes(userId));
       setLikeCount(res.data.post.likes.length);
     } catch (err) {
@@ -54,41 +69,41 @@ const PostCard = ({
     }
   };
 
-const handleCommentSubmit = async () => {
-  if (!commentText.trim()) return;
+  // Comment / reply handler
+  const handleCommentSubmit = async () => {
+    if (!commentText.trim()) return;
 
-  try {
-    let res;
+    try {
+      let res;
 
-    console.log("Submitting comment/reply:", { postId: id, replyToCommentId, text: commentText });
+      if (replyToCommentId) {
+        res = await axios.post(
+          `http://localhost:5000/api/posts/${id}/comment/${replyToCommentId}/reply`,
+          { user_id: userId, text: commentText }
+        );
+      } else {
+        res = await axios.post(
+          `http://localhost:5000/api/posts/${id}/comment`,
+          { user_id: userId, text: commentText }
+        );
+      }
 
-    if (replyToCommentId) {
-      // reply to a comment
-      res = await axios.post(
-        `http://localhost:5000/api/posts/${id}/comment/${replyToCommentId}/reply`,
-        { user_id: userId, text: commentText }
-      );
-    } else {
-      // new comment
-      res = await axios.post(
-        `http://localhost:5000/api/posts/${id}/comment`,
-        { user_id: userId, text: commentText }
-      );
+      setCommentList(res.data.post.comments);
+      updatePostComments(id, res.data.post.comments);
+
+      setReplyToCommentId(null);
+      setCommentText('');
+    } catch (err) {
+      console.error("Error submitting comment:", err);
     }
+  };
 
-    setCommentList(res.data.post.comments);
-    updatePostComments(id, res.data.post.comments);
-    setReplyToCommentId(null);
-    setCommentText('');
-  } catch (err) {
-    console.error("Error submitting comment:", err);
-  }
-};
-
-
+  // Delete post
   const handleDeletePost = async () => {
     try {
-      await axios.delete(`http://localhost:5000/api/posts/${id}`, { data: { user_id: userId } });
+      await axios.delete(`http://localhost:5000/api/posts/${id}`, {
+        data: { user_id: userId }
+      });
       deletePostFromState(id);
     } catch (err) {
       console.error("Error deleting post:", err);
@@ -102,7 +117,7 @@ const handleCommentSubmit = async () => {
         action={userId === user_id && (
           <IconButton onClick={handleDeletePost}><DeleteIcon /></IconButton>
         )}
-        title={<Typography sx={{ fontWeight: 600, fontSize: '1rem' }}>{username}</Typography>}
+        title={<Typography sx={{ fontWeight: 600 }}>{username}</Typography>}
         subheader={
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
             <Typography sx={{ fontSize: '0.8rem', color: '#555' }}>{time}</Typography>
@@ -112,15 +127,9 @@ const handleCommentSubmit = async () => {
       />
 
       <CardContent sx={{ pt: 0 }}>
-        {content && <Typography sx={{ fontSize: '0.95rem', color: '#333' }}>{content}</Typography>}
-        {showImage && (
-          <CardMedia
-            component="img"
-            image={image}
-            alt="Post"
-            onError={() => setShowImage(false)}
-            sx={{ width: '100%', maxHeight: 500, objectFit: 'cover', borderRadius: 2, mt: 1 }}
-          />
+        {content && <Typography sx={{ fontSize: '0.95rem' }}>{content}</Typography>}
+        {imagePreview && (
+          <CardMedia component="img" image={imagePreview} alt="Post" />
         )}
       </CardContent>
 
@@ -128,10 +137,13 @@ const handleCommentSubmit = async () => {
         <IconButton onClick={handleLike} color={liked ? 'error' : 'default'}>
           {liked ? <FavoriteIcon /> : <FavoriteBorderIcon />}
         </IconButton>
+
         <Typography>{likeCount}</Typography>
+
         <IconButton onClick={() => setShowComments(prev => !prev)} sx={{ ml: 2 }}>
           <ChatBubbleOutlineIcon />
         </IconButton>
+
         <Typography>{commentList.length}</Typography>
       </CardContent>
 
