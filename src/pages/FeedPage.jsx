@@ -4,17 +4,22 @@ import axios from "axios";
 import { Box, Fab } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
 import PostCard from "../components/PostCard.jsx";
+import AddPostModal from "../components/AddPostModal.jsx"; // import modal
 
 const FeedPage = () => {
   const [posts, setPosts] = useState([]);
   const [openModal, setOpenModal] = useState(false);
-  const userId = "6914a40b3d9abd7785f81ac5"; // replace with actual logged-in user
+
+  const storedUser = localStorage.getItem("user");
+  const loggedInUser = storedUser ? JSON.parse(storedUser) : null;
+  const userId = loggedInUser?._id;
+
+  const circleId = "691458e70454e9306bf21990"; // can make dynamic if needed
 
   // Fetch posts
   const fetchPosts = async () => {
     try {
-      const res = await axios.get("http://localhost:5000/api/posts/circle/691458e70454e9306bf21990"); // replace circle_id dynamically if needed
-      // prepend full URL to media
+      const res = await axios.get(`http://localhost:5000/api/posts/circle/${circleId}`);
       const formattedPosts = res.data.posts.map(p => ({
         ...p,
         media_url: p.media_url ? `http://localhost:5000${p.media_url}` : null
@@ -29,16 +34,21 @@ const FeedPage = () => {
     fetchPosts();
   }, []);
 
-  // Update comments in state after adding comment/reply
+  // Update comments after adding comment/reply
   const updatePostComments = (postId, newComments) => {
     setPosts(prev =>
       prev.map(p => (p._id === postId ? { ...p, comments: newComments } : p))
     );
   };
 
-  // Remove post from state after deletion
+  // Remove post after deletion
   const deletePostFromState = postId => {
     setPosts(prev => prev.filter(p => p._id !== postId));
+  };
+
+  // Add new post to state
+  const handlePostCreated = (newPost) => {
+    setPosts(prev => [newPost, ...prev]); // add to top of feed
   };
 
   return (
@@ -69,7 +79,17 @@ const FeedPage = () => {
       >
         <AddIcon />
       </Fab>
-      {/* AddPostModal should open when openModal = true */}
+
+      {/* AddPostModal */}
+      {openModal && (
+  <AddPostModal
+    userId={userId}          // <--- pass it here
+    circleId={circleId}
+    onPostCreated={handlePostCreated}
+  />
+)}
+
+
     </Box>
   );
 };

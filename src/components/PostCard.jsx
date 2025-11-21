@@ -31,15 +31,20 @@ const PostCard = ({
   updatePostComments,
   deletePostFromState,
 }) => {
-  const userId = "6914a40b3d9abd7785f81ac5";
+  // Fetch user from localStorage
+  const storedUser = localStorage.getItem("user");
+  const user = storedUser ? JSON.parse(storedUser) : null;
+  const userId = user?._id || null;
 
   const [likeCount, setLikeCount] = useState(likes.length);
-  const [liked, setLiked] = useState(likes.includes(userId));
+  const [liked, setLiked] = useState(userId ? likes.includes(userId) : false);
   const [commentList, setCommentList] = useState(comments);
   const [commentText, setCommentText] = useState('');
   const [replyToCommentId, setReplyToCommentId] = useState(null);
   const [showComments, setShowComments] = useState(false);
   const [imagePreview, setImagePreview] = useState('');
+  const [likeLoading, setLikeLoading] = useState(false);
+  const [commentLoading, setCommentLoading] = useState(false);
 
   // Image preview handler
   useEffect(() => {
@@ -54,56 +59,73 @@ const PostCard = ({
     }
   }, [image]);
 
-  // Like handler
+  // Optimistic Like handler
   const handleLike = async () => {
-    try {
-      const res = await axios.patch(
-        `http://localhost:5000/api/posts/${id}/like`,
-        { user_id: userId }
-      );
+    if (!userId) return alert("You must be logged in to like posts.");
+    if (likeLoading) return;
 
+    setLikeLoading(true);
+
+    const newLiked = !liked;
+    setLiked(newLiked);
+    setLikeCount(prev => newLiked ? prev + 1 : prev - 1);
+
+    try {
+      const res = await axios.patch(`http://localhost:5000/api/posts/${id}/like`, { user_id: userId });
       setLiked(res.data.post.likes.includes(userId));
       setLikeCount(res.data.post.likes.length);
     } catch (err) {
       console.error("Error liking post:", err);
+      setLiked(!newLiked);
+      setLikeCount(prev => newLiked ? prev - 1 : prev + 1);
+    } finally {
+      setLikeLoading(false);
     }
   };
 
-  // Comment / reply handler
+  // Optimistic Comment / Reply handler
   const handleCommentSubmit = async () => {
-    if (!commentText.trim()) return;
+    if (!userId) return alert("You must be logged in to comment.");
+    if (!commentText.trim() || commentLoading) return;
+
+    setCommentLoading(true);
+
+    const tempComment = {
+      _id: Math.random().toString(36).substr(2, 9), // temporary ID
+      user_id: userId,
+      username: user.name,
+      text: commentText,
+      replies: [],
+    };
+
+    setCommentList(prev => [...prev, tempComment]);
+    setCommentText('');
 
     try {
-      let res;
+      const url = replyToCommentId
+        ? `http://localhost:5000/api/posts/${id}/comment/${replyToCommentId}/reply`
+        : `http://localhost:5000/api/posts/${id}/comment`;
 
-      if (replyToCommentId) {
-        res = await axios.post(
-          `http://localhost:5000/api/posts/${id}/comment/${replyToCommentId}/reply`,
-          { user_id: userId, text: commentText }
-        );
-      } else {
-        res = await axios.post(
-          `http://localhost:5000/api/posts/${id}/comment`,
-          { user_id: userId, text: commentText }
-        );
-      }
+      const res = await axios.post(url, { user_id: userId, text: tempComment.text });
 
       setCommentList(res.data.post.comments);
       updatePostComments(id, res.data.post.comments);
-
       setReplyToCommentId(null);
-      setCommentText('');
     } catch (err) {
       console.error("Error submitting comment:", err);
+      alert("Failed to submit comment. Rolling back.");
+      setCommentList(prev => prev.filter(c => c._id !== tempComment._id));
+    } finally {
+      setCommentLoading(false);
     }
   };
 
   // Delete post
   const handleDeletePost = async () => {
+    if (!userId) return alert("You must be logged in to delete posts.");
+
     try {
-      await axios.delete(`http://localhost:5000/api/posts/${id}`, {
-        data: { user_id: userId }
-      });
+      await axios.delete(`http://localhost:5000/api/posts/${id}`, { data: { user_id: userId } });
       deletePostFromState(id);
     } catch (err) {
       console.error("Error deleting post:", err);
@@ -137,13 +159,11 @@ const PostCard = ({
         <IconButton onClick={handleLike} color={liked ? 'error' : 'default'}>
           {liked ? <FavoriteIcon /> : <FavoriteBorderIcon />}
         </IconButton>
-
         <Typography>{likeCount}</Typography>
 
         <IconButton onClick={() => setShowComments(prev => !prev)} sx={{ ml: 2 }}>
           <ChatBubbleOutlineIcon />
         </IconButton>
-
         <Typography>{commentList.length}</Typography>
       </CardContent>
 
@@ -156,6 +176,7 @@ const PostCard = ({
             handleCommentSubmit={handleCommentSubmit}
             setReplyToCommentId={setReplyToCommentId}
             replyToCommentId={replyToCommentId}
+            loading={commentLoading}
           />
         </CardContent>
       )}

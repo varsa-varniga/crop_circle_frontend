@@ -7,6 +7,7 @@ import ProfilePage from "./pages/ProfilePage";
 import UserFeedPage from "./pages/UserFeedPage";
 import Login from "./pages/LoginPage";
 import SignUpPage from "./pages/SignUpPage";
+import CompleteProfilePage from "./pages/CompleteProfilePage";
 
 import theme from "./theme/theme";
 
@@ -33,6 +34,8 @@ const App = () => {
             <Route path="/register" element={<SignUpPage />} />
             <Route path="/" element={<Login />} />
             <Route path="/login" element={<Login />} />
+            <Route path="/complete-profile" element={<CompleteProfilePage />} />
+
 
             {/* Protected */}
             <Route

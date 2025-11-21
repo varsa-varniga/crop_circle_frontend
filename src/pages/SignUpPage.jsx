@@ -21,22 +21,19 @@ export default function SignUpPage() {
 
     try {
       setLoading(true);
-
       const res = await axios.post(`${API}/register`, {
         name,
         email,
         password,
-        experience_level: experienceLevel
+        experience_level: experienceLevel,
       });
 
       const userData = res.data.user;
-
-      // Save user in context + localStorage
       login(userData);
+      localStorage.setItem("user", JSON.stringify(userData));
 
-      // Redirect to profile
-      navigate("/profile");
-
+      // Redirect to complete profile to select crop type
+      navigate("/complete-profile");
     } catch (err) {
       console.error("Sign-up error:", err.response?.data || err.message);
       alert(err.response?.data?.error || "Failed to sign up");
@@ -47,61 +44,24 @@ export default function SignUpPage() {
 
   return (
     <Box sx={{ maxWidth: 400, mx: "auto", mt: 10, p: 3, bgcolor: "#fafafa", borderRadius: 2, boxShadow: "0 2px 6px rgba(0,0,0,0.1)" }}>
-      <Typography variant="h4" sx={{ mb: 3, textAlign: "center", color: "#16a34a" }}>
-        Sign Up
-      </Typography>
-
+      <Typography variant="h4" sx={{ mb: 3, textAlign: "center", color: "#16a34a" }}>Sign Up</Typography>
       <Stack spacing={2}>
-        <TextField
-          label="Name"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          fullWidth
-        />
+        <TextField label="Name" value={name} onChange={(e) => setName(e.target.value)} fullWidth />
+        <TextField label="Email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} fullWidth />
+        <TextField label="Password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} fullWidth />
 
-        <TextField
-          label="Email"
-          type="email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          fullWidth
-        />
-
-        <TextField
-          label="Password"
-          type="password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          fullWidth
-        />
-
-        {/* Experience Level Selector */}
         <FormControl fullWidth>
           <InputLabel>Experience Level</InputLabel>
-          <Select
-            value={experienceLevel}
-            label="Experience Level"
-            onChange={(e) => setExperienceLevel(e.target.value)}
-          >
+          <Select value={experienceLevel} label="Experience Level" onChange={(e) => setExperienceLevel(e.target.value)}>
             <MenuItem value="beginner">Beginner</MenuItem>
             <MenuItem value="intermediate">Intermediate</MenuItem>
             <MenuItem value="expert">Expert</MenuItem>
           </Select>
         </FormControl>
 
-        <Button
-          variant="contained"
-          sx={{ bgcolor: "#16a34a", fontWeight: 600 }}
-          onClick={handleSignUp}
-          disabled={loading}
-        >
+        <Button variant="contained" sx={{ bgcolor: "#16a34a", fontWeight: 600 }} onClick={handleSignUp} disabled={loading}>
           {loading ? "Signing up..." : "Sign Up"}
         </Button>
-
-        <Typography sx={{ textAlign: "center" }}>
-          Already have an account?{" "}
-          <Button variant="text" onClick={() => navigate("/login")}>Login</Button>
-        </Typography>
       </Stack>
     </Box>
   );

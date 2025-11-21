@@ -3,13 +3,17 @@ import { Fab, Modal, Box, TextField, Button, MenuItem, Select, InputLabel, FormC
 import AddIcon from "@mui/icons-material/Add";
 import axios from "axios";
 
-const AddPostModal = ({ userId, circleId, onPostCreated }) => {
+const AddPostModal = ({ circleId, onPostCreated }) => {
   const [open, setOpen] = useState(false);
   const [content, setContent] = useState("");
   const [imageFile, setImageFile] = useState(null);
   const [imagePreview, setImagePreview] = useState("");
   const [type, setType] = useState("update");
   const [loading, setLoading] = useState(false);
+
+  const storedUser = localStorage.getItem("user");
+  const loggedInUser = storedUser ? JSON.parse(storedUser) : null;
+  const userId = loggedInUser?._id;
 
   const handleFileChange = (e) => {
     const file = e.target.files[0];
@@ -19,64 +23,57 @@ const AddPostModal = ({ userId, circleId, onPostCreated }) => {
     }
   };
 
-const handlePost = async () => {
-  if (!userId || !circleId) return alert("User or Circle ID missing!");
-  if (!content && !imageFile) return alert("Post cannot be empty");
+  const handlePost = async () => {
+    if (!userId || !circleId) return alert("User or Circle ID missing!");
+    if (!content && !imageFile) return alert("Post cannot be empty");
 
-  setLoading(true);
-  try {
-    const formData = new FormData();
-    formData.append("user_id", userId); // <-- use userId here
-    formData.append("circle_id", circleId);
-    formData.append("content", content);
-    formData.append("type", type);
-    if (imageFile) formData.append("image", imageFile);
+    setLoading(true);
+    try {
+      const formData = new FormData();
+      formData.append("user_id", userId);
+      formData.append("circle_id", circleId);
+      formData.append("content", content);
+      formData.append("type", type);
+      if (imageFile) formData.append("image", imageFile);
 
-    console.log("Sending FormData:", { userId, circleId, content, type, imageFile });
+      // Debug: log all formData entries
+      for (let pair of formData.entries()) console.log(pair[0], pair[1]);
 
-    const res = await axios.post(
-      "http://localhost:5000/api/posts/create",
-      formData,
-      { headers: { "Content-Type": "multipart/form-data" } }
-    );
+      const res = await axios.post(
+        "http://localhost:5000/api/posts/create",
+        formData,
+        { headers: { "Content-Type": "multipart/form-data" } }
+      );
 
-    console.log("Post response:", res.data);
+      const post = res.data.post;
 
-    const post = res.data.post;
+      const newPost = {
+        id: post._id,
+        username: post.user_id?.name || "Unknown",
+        avatarSrc: post.user_id?.profile_photo ? `http://localhost:5000${post.user_id.profile_photo}` : "/default-avatar.png",
+        time: post.createdAt ? new Date(post.createdAt).toLocaleString("en-IN") : "Unknown",
+        content: post.content,
+        image: post.media_url ? `http://localhost:5000${post.media_url}` : null,
+        likes: post.likes || [],
+        likedByMe: post.likes?.includes(userId),
+        comments: post.comments || [],
+        type: post.type,
+        pinned: post.pinned,
+      };
 
-    const newPost = {
-      id: post._id,
-      username: post.user_id?.name || "Unknown",
-      avatarSrc: post.user_id?.profile_photo
-        ? `http://localhost:5000${post.user_id.profile_photo}`
-        : "/default-avatar.png",
-      time: post.createdAt
-        ? new Date(post.createdAt).toLocaleString("en-IN")
-        : "Unknown",
-      content: post.content,
-      image: post.media_url ? `http://localhost:5000${post.media_url}` : null,
-      likes: post.likes.length,
-      likedByMe: post.likes.includes(userId),
-      comments: post.comments || [],
-      type: post.type,
-      pinned: post.pinned,
-    };
+      onPostCreated(newPost);
 
-    console.log("Formatted post for frontend:", newPost);
-
-    onPostCreated(newPost);
-
-    setContent("");
-    setImageFile(null);
-    setImagePreview("");
-    setType("update");
-    setOpen(false);
-  } catch (err) {
-    console.error("Error creating post:", err.response?.data || err.message);
-    alert("Failed to create post");
-  }
-  setLoading(false);
-};
+      setContent("");
+      setImageFile(null);
+      setImagePreview("");
+      setType("update");
+      setOpen(false);
+    } catch (err) {
+      console.error("Error creating post:", err.response?.data || err.message);
+      alert("Failed to create post. Check console for details.");
+    }
+    setLoading(false);
+  };
 
   return (
     <>
