@@ -130,50 +130,79 @@ const ProfilePage = () => {
           </Box>
 
           {/* Posts Grid */}
-          <Box sx={{
-            display: 'grid',
-            gridTemplateColumns: isLargeScreen ? 'repeat(4, 1fr)' : 'repeat(3, 1fr)',
-            gap: 1,
-            mt: 2
-          }}>
-            {posts.length === 0 && (
-              <Typography sx={{ textAlign: 'center', color: '#777', mt: 2 }}>No posts yet</Typography>
-            )}
-            {posts.map(post => (
-              <Box key={post._id} sx={{
-                width: '100%',
-                pb: '100%',
-                position: 'relative',
-                borderRadius: 1,
+          {posts.length > 0 && (
+  <Box
+    sx={{
+      display: 'grid',
+      gridTemplateColumns: { xs: 'repeat(3, 1fr)', lg: 'repeat(4, 1fr)' },
+      gap: 1,
+      mt: 2,
+    }}
+  >
+    {posts.map(post => (
+      <Box
+        key={post.id || post._id}
+        sx={{
+          width: '100%',
+          paddingTop: '100%', // makes square
+          position: 'relative',
+          overflow: 'hidden',
+          borderRadius: 1,
+          cursor: 'pointer',
+        }}
+        onClick={() => navigate(`/profile/${user._id}/feed`)} // navigate to feed
+      >
+        {post.media_url ? (
+          <Box
+            component="img"
+            src={post.media_url.startsWith('http') ? post.media_url : `http://localhost:5000${post.media_url}`}
+            alt="Post"
+            sx={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              width: '100%',
+              height: '100%',
+              objectFit: 'cover',
+            }}
+          />
+        ) : post.content ? (
+          <Box
+            sx={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              width: '100%',
+              height: '100%',
+              bgcolor: '#dcfce7',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              textAlign: 'center',
+              p: 1,
+            }}
+          >
+            <Typography
+              sx={{
+                color: '#166534',
+                fontSize: '0.85rem',
+                fontWeight: 500,
                 overflow: 'hidden',
-                cursor: 'pointer',
-                bgcolor: post.media_url ? 'transparent' : '#e0ffe0',
-              }} onClick={() => navigate(`/profile/${user._id}/feed`)}>
-                {post.media_url ? (
-                  <Box component="img" src={post.media_url} alt="Post"
-                    sx={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'cover' }}
-                  />
-                ) : post.content ? (
-                  <Box sx={{
-                    position: 'absolute', top: 0, left: 0, width: '100%', height: '100%',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center',
-                    p: 1, overflow: 'hidden',
-                  }}>
-                    <Typography sx={{
-                      color: '#555',
-                      fontSize: '0.95rem',
-                      wordBreak: 'break-word',
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      display: '-webkit-box',
-                      WebkitLineClamp: 4,
-                      WebkitBoxOrient: 'vertical',
-                    }}>{post.content}</Typography>
-                  </Box>
-                ) : null}
-              </Box>
-            ))}
+                display: '-webkit-box',
+                WebkitLineClamp: 5,
+                WebkitBoxOrient: 'vertical',
+                wordBreak: 'break-word',
+              }}
+            >
+              {post.content}
+            </Typography>
           </Box>
+        ) : null}
+      </Box>
+    ))}
+  </Box>
+)}
+
 
         </Box>
       </Box>

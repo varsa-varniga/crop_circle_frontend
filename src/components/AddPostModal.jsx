@@ -1,19 +1,38 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Fab, Modal, Box, TextField, Button, MenuItem, Select, InputLabel, FormControl, Typography } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
 import axios from "axios";
 
-const AddPostModal = ({ circleId, onPostCreated }) => {
+const AddPostModal = ({ circleId: propCircleId, onPostCreated }) => {
   const [open, setOpen] = useState(false);
   const [content, setContent] = useState("");
   const [imageFile, setImageFile] = useState(null);
   const [imagePreview, setImagePreview] = useState("");
   const [type, setType] = useState("update");
   const [loading, setLoading] = useState(false);
+  const [circleId, setCircleId] = useState(propCircleId || null);
 
   const storedUser = localStorage.getItem("user");
   const loggedInUser = storedUser ? JSON.parse(storedUser) : null;
   const userId = loggedInUser?._id;
+
+  // Fetch user's circle if circleId not provided
+  useEffect(() => {
+    const fetchCircle = async () => {
+      if (!userId || circleId) return; // already have circleId
+      try {
+        const res = await axios.get(`http://localhost:5000/api/crop-circle/get-my-circle?user_id=${userId}`);
+        if (res.data.alreadyJoined) {
+          setCircleId(res.data.circle._id);
+        } else {
+          alert("You need to join a crop circle before posting!");
+        }
+      } catch (err) {
+        console.error("Error fetching circle info:", err.response?.data || err.message);
+      }
+    };
+    fetchCircle();
+  }, [userId, circleId]);
 
   const handleFileChange = (e) => {
     const file = e.target.files[0];
@@ -24,7 +43,8 @@ const AddPostModal = ({ circleId, onPostCreated }) => {
   };
 
   const handlePost = async () => {
-    if (!userId || !circleId) return alert("User or Circle ID missing!");
+    if (!userId) return alert("User not logged in!");
+    if (!circleId) return alert("You must join a circle before posting!");
     if (!content && !imageFile) return alert("Post cannot be empty");
 
     setLoading(true);
@@ -34,26 +54,22 @@ const AddPostModal = ({ circleId, onPostCreated }) => {
       formData.append("circle_id", circleId);
       formData.append("content", content);
       formData.append("type", type);
-      if (imageFile) formData.append("image", imageFile);
+      if (imageFile) formData.append("image", imageFile); // matches backend multer key
 
-      // Debug: log all formData entries
-      for (let pair of formData.entries()) console.log(pair[0], pair[1]);
-
-      const res = await axios.post(
-        "http://localhost:5000/api/posts/create",
-        formData,
-        { headers: { "Content-Type": "multipart/form-data" } }
-      );
+      const res = await axios.post("http://localhost:5000/api/posts/create", formData, {
+        headers: { "Content-Type": "multipart/form-data" }
+      });
 
       const post = res.data.post;
 
+      // Frontend post object using backend media_url
       const newPost = {
         id: post._id,
         username: post.user_id?.name || "Unknown",
         avatarSrc: post.user_id?.profile_photo ? `http://localhost:5000${post.user_id.profile_photo}` : "/default-avatar.png",
         time: post.createdAt ? new Date(post.createdAt).toLocaleString("en-IN") : "Unknown",
         content: post.content,
-        image: post.media_url ? `http://localhost:5000${post.media_url}` : null,
+        image: post.media_url ? `http://localhost:5000/uploads/${post.media_url}` : null, // frontend uses media_url from backend
         likes: post.likes || [],
         likedByMe: post.likes?.includes(userId),
         comments: post.comments || [],
@@ -83,7 +99,14 @@ const AddPostModal = ({ circleId, onPostCreated }) => {
 
       <Modal open={open} onClose={() => setOpen(false)}>
         <Box sx={{ width: 400, bgcolor: "background.paper", p: 3, borderRadius: 2, mx: "auto", mt: "20vh", display: "flex", flexDirection: "column", gap: 2 }}>
-          <TextField label="What's on your mind?" multiline rows={3} fullWidth value={content} onChange={(e) => setContent(e.target.value)} />
+          <TextField
+            label="What's on your mind?"
+            multiline
+            rows={3}
+            fullWidth
+            value={content}
+            onChange={(e) => setContent(e.target.value)}
+          />
 
           <Button variant="outlined" component="label">
             Upload Image
@@ -93,7 +116,11 @@ const AddPostModal = ({ circleId, onPostCreated }) => {
           {imagePreview && (
             <Box sx={{ mt: 1 }}>
               <Typography variant="body2">Preview:</Typography>
-              <img src={imagePreview} alt="Preview" style={{ width: "100%", maxHeight: 200, objectFit: "cover", borderRadius: 6 }} />
+              <img
+                src={imagePreview}
+                alt="Preview"
+                style={{ width: "100%", maxHeight: 200, objectFit: "cover", borderRadius: 6 }}
+              />
             </Box>
           )}
 
