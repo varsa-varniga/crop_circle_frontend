@@ -8,13 +8,13 @@ import UserFeedPage from "./pages/UserFeedPage";
 import Login from "./pages/LoginPage";
 import SignUpPage from "./pages/SignUpPage";
 import CompleteProfilePage from "./pages/CompleteProfilePage";
+import NotificationsPage from "./pages/NotificationsPage";
 
 import theme from "./theme/theme";
 
 import { AuthProvider } from "./context/AuthContext";
 import ProtectedRoute from "./components/ProtectedRoute";
 import BottomNav from "./components/BottomNav";
-
 
 // Layout for all protected pages
 const ProtectedLayout = ({ children }) => (
@@ -36,7 +36,6 @@ const App = () => {
             <Route path="/login" element={<Login />} />
             <Route path="/complete-profile" element={<CompleteProfilePage />} />
 
-
             {/* Protected */}
             <Route
               path="/home"
@@ -44,6 +43,17 @@ const App = () => {
                 <ProtectedRoute>
                   <ProtectedLayout>
                     <FeedPage />
+                  </ProtectedLayout>
+                </ProtectedRoute>
+              }
+            />
+
+            <Route
+              path="/notifications"
+              element={
+                <ProtectedRoute>
+                  <ProtectedLayout>
+                    <NotificationsPage />
                   </ProtectedLayout>
                 </ProtectedRoute>
               }
@@ -70,6 +80,9 @@ const App = () => {
                 </ProtectedRoute>
               }
             />
+
+            {/* Optional catch-all */}
+            <Route path="*" element={<h2>Page Not Found</h2>} />
           </Routes>
         </Router>
       </AuthProvider>

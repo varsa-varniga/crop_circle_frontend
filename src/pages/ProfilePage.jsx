@@ -17,9 +17,10 @@ const ProfilePage = () => {
   const [bio, setBio] = useState('');
   const [dob, setDob] = useState('');
   const [experienceLevel, setExperienceLevel] = useState('beginner');
+  const [isMentor, setIsMentor] = useState(false);
 
   const userId = loggedInUser?._id;
-  const circleId = "691458e70454e9306bf21990";
+  const circleId = "691458e70454e9306bf21990"; // optional, for AddPostModal
 
   const theme = useTheme();
   const isLargeScreen = useMediaQuery(theme.breakpoints.up('lg'));
@@ -35,10 +36,22 @@ const ProfilePage = () => {
         setUser(res.data.user);
         setPosts(res.data.posts);
         setExperienceLevel(res.data.user.experience_level || 'beginner');
+
+        // Check mentor status safely
+        if (res.data.user.joined_circle) {
+          try {
+            const circleRes = await axios.get(`http://localhost:5000/api/crop-circle/${res.data.user.joined_circle}`);
+            const circle = circleRes.data.circle;
+            setIsMentor(circle?.mentors?.includes(userId));
+          } catch {
+            setIsMentor(false);
+          }
+        }
       } catch (err) {
         console.error("Error fetching profile:", err.response?.data || err.message);
       }
     };
+
     fetchProfile();
   }, [userId]);
 
@@ -61,34 +74,60 @@ const ProfilePage = () => {
           {/* Profile Header */}
           <Box sx={{ backgroundColor: 'white', p: isLargeScreen ? 4 : 3, borderBottom: '1px solid #e0e0e0', my: 2, borderRadius: 2, boxShadow: '0 2px 6px rgba(0,0,0,0.05)' }}>
             <Stack direction="row" spacing={3} alignItems="center">
-  <Avatar
+              <Avatar
   src={
     profilePhoto
       ? typeof profilePhoto === "string"
-        ? `http://localhost:5000${profilePhoto}`
+        ? profilePhoto.startsWith("http")
+          ? profilePhoto
+          : `http://localhost:5000${profilePhoto}`
         : URL.createObjectURL(profilePhoto)
       : user.profile_photo
-        ? `http://localhost:5000${user.profile_photo}`
-        : '/default-avatar.png'
+        ? user.profile_photo.startsWith("http")
+          ? user.profile_photo
+          : `http://localhost:5000${user.profile_photo}`
+        : "/default-avatar.png"
   }
   sx={{
-    width: isLargeScreen ? 180 : 120,
-    height: isLargeScreen ? 180 : 120,
-    border: '2px solid #e0e0e0',
-    borderRadius: '50%',
-    objectFit: 'cover',
-    objectPosition: 'center center' // ⚡ center the photo perfectly
+    width: { xs: 90, sm: 120, md: 150 },
+    height: { xs: 90, sm: 120, md: 150 },
+    objectFit: "cover",
+    borderRadius: "50%",
+    border: "3px solid #eee",
   }}
 />
 
 
               <Box sx={{ flex: 1 }}>
-                <Typography sx={{ fontSize: isLargeScreen ? '2.5rem' : '1.7rem', fontWeight: 600, color: '#16a34a', mb: 0.5 }}>
+                {/* Name + Mentor Badge */}
+                <Typography sx={{
+                  fontSize: isLargeScreen ? '2.5rem' : '1.7rem',
+                  fontWeight: 600,
+                  color: '#16a34a',
+                  mb: 0.5,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 1
+                }}>
                   {user.name}
+                  {isMentor && (
+                    <Box sx={{
+                      bgcolor: '#facc15',
+                      color: '#78350f',
+                      px: 1.5,
+                      py: 0.3,
+                      borderRadius: 1,
+                      fontSize: isLargeScreen ? '1rem' : '0.8rem',
+                      fontWeight: 600
+                    }}>
+                      Mentor
+                    </Box>
+                  )}
                 </Typography>
-               <Typography sx={{ fontSize: isLargeScreen ? '1.2rem' : '1rem' }}>
-  {experienceLevel}
-</Typography>
+
+                <Typography sx={{ fontSize: isLargeScreen ? '1.2rem' : '1rem' }}>
+                  {experienceLevel}
+                </Typography>
 
                 {user.date_of_birth && (
                   <Typography sx={{ fontSize: isLargeScreen ? '1.2rem' : '1rem' }}>
@@ -131,78 +170,77 @@ const ProfilePage = () => {
 
           {/* Posts Grid */}
           {posts.length > 0 && (
-  <Box
-    sx={{
-      display: 'grid',
-      gridTemplateColumns: { xs: 'repeat(3, 1fr)', lg: 'repeat(4, 1fr)' },
-      gap: 1,
-      mt: 2,
-    }}
-  >
-    {posts.map(post => (
-      <Box
-        key={post.id || post._id}
-        sx={{
-          width: '100%',
-          paddingTop: '100%', // makes square
-          position: 'relative',
-          overflow: 'hidden',
-          borderRadius: 1,
-          cursor: 'pointer',
-        }}
-        onClick={() => navigate(`/profile/${user._id}/feed`)} // navigate to feed
-      >
-        {post.media_url ? (
-          <Box
-            component="img"
-            src={post.media_url.startsWith('http') ? post.media_url : `http://localhost:5000${post.media_url}`}
-            alt="Post"
-            sx={{
-              position: 'absolute',
-              top: 0,
-              left: 0,
-              width: '100%',
-              height: '100%',
-              objectFit: 'cover',
-            }}
-          />
-        ) : post.content ? (
-          <Box
-            sx={{
-              position: 'absolute',
-              top: 0,
-              left: 0,
-              width: '100%',
-              height: '100%',
-              bgcolor: '#dcfce7',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              textAlign: 'center',
-              p: 1,
-            }}
-          >
-            <Typography
+            <Box
               sx={{
-                color: '#166534',
-                fontSize: '0.85rem',
-                fontWeight: 500,
-                overflow: 'hidden',
-                display: '-webkit-box',
-                WebkitLineClamp: 5,
-                WebkitBoxOrient: 'vertical',
-                wordBreak: 'break-word',
+                display: 'grid',
+                gridTemplateColumns: { xs: 'repeat(3, 1fr)', lg: 'repeat(4, 1fr)' },
+                gap: 1,
+                mt: 2,
               }}
             >
-              {post.content}
-            </Typography>
-          </Box>
-        ) : null}
-      </Box>
-    ))}
-  </Box>
-)}
-
+              {posts.map(post => (
+                <Box
+                  key={post.id || post._id}
+                  sx={{
+                    width: '100%',
+                    paddingTop: '100%',
+                    position: 'relative',
+                    overflow: 'hidden',
+                    borderRadius: 1,
+                    cursor: 'pointer',
+                  }}
+                  onClick={() => navigate(`/profile/${user._id}/feed`)}
+                >
+                  {post.media_url ? (
+                    <Box
+                      component="img"
+                      src={post.media_url.startsWith('http') ? post.media_url : `http://localhost:5000${post.media_url}`}
+                      alt="Post"
+                      sx={{
+                        position: 'absolute',
+                        top: 0,
+                        left: 0,
+                        width: '100%',
+                        height: '100%',
+                        objectFit: 'cover',
+                      }}
+                    />
+                  ) : post.content ? (
+                    <Box
+                      sx={{
+                        position: 'absolute',
+                        top: 0,
+                        left: 0,
+                        width: '100%',
+                        height: '100%',
+                        bgcolor: '#dcfce7',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        textAlign: 'center',
+                        p: 1,
+                      }}
+                    >
+                      <Typography
+                        sx={{
+                          color: '#166534',
+                          fontSize: '0.85rem',
+                          fontWeight: 500,
+                          overflow: 'hidden',
+                          display: '-webkit-box',
+                          WebkitLineClamp: 5,
+                          WebkitBoxOrient: 'vertical',
+                          wordBreak: 'break-word',
+                        }}
+                      >
+                        {post.content}
+                      </Typography>
+                    </Box>
+                  ) : null}
+                </Box>
+              ))}
+            </Box>
+          )}
 
         </Box>
       </Box>
@@ -215,7 +253,6 @@ const ProfilePage = () => {
         }}>
           <Typography variant="h6">Edit Profile</Typography>
 
-          {/* Avatar Preview */}
           {profilePhoto && (
             <Avatar
               src={typeof profilePhoto === "string" ? `http://localhost:5000${profilePhoto}` : URL.createObjectURL(profilePhoto)}
@@ -223,7 +260,6 @@ const ProfilePage = () => {
             />
           )}
 
-          {/* Upload */}
           <Button variant="outlined" component="label" sx={{ mb: 1 }}>
             Upload Profile Photo
             <input type="file" accept="image/*" hidden onChange={e => setProfilePhoto(e.target.files[0])} />
@@ -262,11 +298,10 @@ const ProfilePage = () => {
                   { headers: { "Content-Type": "multipart/form-data" } }
                 );
 
-               setUser(res.data.user);
-setProfilePhoto(res.data.user.profile_photo);
-setExperienceLevel(res.data.user.experience_level || 'beginner');
-setEditMode(false);
-
+                setUser(res.data.user);
+                setProfilePhoto(res.data.user.profile_photo);
+                setExperienceLevel(res.data.user.experience_level || 'beginner');
+                setEditMode(false);
               } catch (err) {
                 console.error("Error updating profile:", err.response?.data || err.message);
               }

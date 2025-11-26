@@ -1,39 +1,65 @@
 import React, { useState, useEffect } from "react";
-import { Fab, Modal, Box, TextField, Button, MenuItem, Select, InputLabel, FormControl, Typography } from "@mui/material";
+import {
+  Fab,
+  Modal,
+  Box,
+  TextField,
+  Button,
+  MenuItem,
+  Select,
+  InputLabel,
+  FormControl,
+  Typography,
+  useMediaQuery,
+  IconButton,
+} from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
+import CloseIcon from "@mui/icons-material/Close";
 import axios from "axios";
 
 const AddPostModal = ({ circleId: propCircleId, onPostCreated }) => {
   const [open, setOpen] = useState(false);
+  const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
   const [imageFile, setImageFile] = useState(null);
   const [imagePreview, setImagePreview] = useState("");
   const [type, setType] = useState("update");
   const [loading, setLoading] = useState(false);
-  const [circleId, setCircleId] = useState(propCircleId || null);
+  const [activeCircleId, setActiveCircleId] = useState(propCircleId || null);
+  const [userCircles, setUserCircles] = useState([]);
+  const [fetchingCircles, setFetchingCircles] = useState(false);
 
   const storedUser = localStorage.getItem("user");
   const loggedInUser = storedUser ? JSON.parse(storedUser) : null;
   const userId = loggedInUser?._id;
 
-  // Fetch user's circle if circleId not provided
+  const isMobile = useMediaQuery("(max-width:600px)");
+
+  // Fetch user's joined circles
   useEffect(() => {
-    const fetchCircle = async () => {
-      if (!userId || circleId) return; // already have circleId
+    const fetchJoinedCircles = async () => {
+      if (!userId) return;
+      setFetchingCircles(true);
       try {
-        const res = await axios.get(`http://localhost:5000/api/crop-circle/get-my-circle?user_id=${userId}`);
-        if (res.data.alreadyJoined) {
-          setCircleId(res.data.circle._id);
+        const res = await axios.get(
+          `http://localhost:5000/api/crop-circle/get-my-circles?user_id=${userId}`
+        );
+        if (res.data.circles?.length > 0) {
+          setUserCircles(res.data.circles);
+          if (!propCircleId) setActiveCircleId(res.data.circles[0]._id);
         } else {
           alert("You need to join a crop circle before posting!");
         }
       } catch (err) {
-        console.error("Error fetching circle info:", err.response?.data || err.message);
+        console.error("Error fetching user circles:", err.response?.data || err.message);
+      } finally {
+        setFetchingCircles(false);
       }
     };
-    fetchCircle();
-  }, [userId, circleId]);
+    fetchJoinedCircles();
+  }, [userId, propCircleId]);
 
+  // Handle image selection
   const handleFileChange = (e) => {
     const file = e.target.files[0];
     if (file) {
@@ -42,34 +68,40 @@ const AddPostModal = ({ circleId: propCircleId, onPostCreated }) => {
     }
   };
 
+  // Create post
   const handlePost = async () => {
     if (!userId) return alert("User not logged in!");
-    if (!circleId) return alert("You must join a circle before posting!");
-    if (!content && !imageFile) return alert("Post cannot be empty");
+    if (!activeCircleId) return alert("Select a circle before posting!");
+    if (!title && !content && !imageFile) return alert("Post cannot be empty!");
 
     setLoading(true);
     try {
       const formData = new FormData();
       formData.append("user_id", userId);
-      formData.append("circle_id", circleId);
+      formData.append("circle_id", activeCircleId); // ✅ always correct active circle
+      formData.append("title", title);
       formData.append("content", content);
       formData.append("type", type);
-      if (imageFile) formData.append("image", imageFile); // matches backend multer key
+      if (imageFile) formData.append("image", imageFile);
 
       const res = await axios.post("http://localhost:5000/api/posts/create", formData, {
-        headers: { "Content-Type": "multipart/form-data" }
+        headers: { "Content-Type": "multipart/form-data" },
       });
 
       const post = res.data.post;
 
-      // Frontend post object using backend media_url
       const newPost = {
         id: post._id,
-        username: post.user_id?.name || "Unknown",
-        avatarSrc: post.user_id?.profile_photo ? `http://localhost:5000${post.user_id.profile_photo}` : "/default-avatar.png",
+        title: post.title,
+        username: loggedInUser?.name || "Unknown",
+        avatarSrc: loggedInUser?.profile_photo
+          ? loggedInUser.profile_photo.startsWith("http")
+            ? loggedInUser.profile_photo
+            : `http://localhost:5000${loggedInUser.profile_photo}`
+          : "/default-avatar.png",
         time: post.createdAt ? new Date(post.createdAt).toLocaleString("en-IN") : "Unknown",
         content: post.content,
-        image: post.media_url ? `http://localhost:5000/uploads/${post.media_url}` : null, // frontend uses media_url from backend
+        image: post.media_url ? `http://localhost:5000${post.media_url}` : null,
         likes: post.likes || [],
         likedByMe: post.likes?.includes(userId),
         comments: post.comments || [],
@@ -79,6 +111,8 @@ const AddPostModal = ({ circleId: propCircleId, onPostCreated }) => {
 
       onPostCreated(newPost);
 
+      // Reset modal
+      setTitle("");
       setContent("");
       setImageFile(null);
       setImagePreview("");
@@ -87,18 +121,70 @@ const AddPostModal = ({ circleId: propCircleId, onPostCreated }) => {
     } catch (err) {
       console.error("Error creating post:", err.response?.data || err.message);
       alert("Failed to create post. Check console for details.");
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   return (
     <>
-      <Fab color="primary" sx={{ position: "fixed", bottom: 80, right: 20 }} onClick={() => setOpen(true)}>
+      <Fab
+        color="primary"
+        sx={{ position: "fixed", bottom: 80, right: 20, zIndex: 1000 }}
+        onClick={() => setOpen(true)}
+      >
         <AddIcon />
       </Fab>
 
       <Modal open={open} onClose={() => setOpen(false)}>
-        <Box sx={{ width: 400, bgcolor: "background.paper", p: 3, borderRadius: 2, mx: "auto", mt: "20vh", display: "flex", flexDirection: "column", gap: 2 }}>
+        <Box
+          sx={{
+            width: isMobile ? "90%" : 400,
+            bgcolor: "background.paper",
+            p: 3,
+            borderRadius: 2,
+            mx: "auto",
+            mt: isMobile ? "10vh" : "20vh",
+            display: "flex",
+            flexDirection: "column",
+            gap: 2,
+            position: "relative",
+          }}
+        >
+          <IconButton
+            sx={{ position: "absolute", top: 8, right: 8 }}
+            onClick={() => setOpen(false)}
+          >
+            <CloseIcon />
+          </IconButton>
+
+          {/* Circle Selector */}
+          {userCircles.length > 1 && (
+            <FormControl fullWidth>
+              <InputLabel>Select Circle</InputLabel>
+              <Select
+                value={activeCircleId}
+                label="Select Circle"
+                onChange={(e) => setActiveCircleId(e.target.value)}
+              >
+                {userCircles.map((circle) => (
+                  <MenuItem key={circle._id} value={circle._id}>
+                    {circle.name}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          )}
+
+          {/* Title */}
+          <TextField
+            label="Post Title"
+            fullWidth
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+          />
+
+          {/* Content */}
           <TextField
             label="What's on your mind?"
             multiline
@@ -108,6 +194,7 @@ const AddPostModal = ({ circleId: propCircleId, onPostCreated }) => {
             onChange={(e) => setContent(e.target.value)}
           />
 
+          {/* Image Upload */}
           <Button variant="outlined" component="label">
             Upload Image
             <input type="file" accept="image/*" hidden onChange={handleFileChange} />
@@ -124,6 +211,7 @@ const AddPostModal = ({ circleId: propCircleId, onPostCreated }) => {
             </Box>
           )}
 
+          {/* Post Type */}
           <FormControl fullWidth>
             <InputLabel>Post Type</InputLabel>
             <Select value={type} label="Post Type" onChange={(e) => setType(e.target.value)}>
@@ -134,7 +222,12 @@ const AddPostModal = ({ circleId: propCircleId, onPostCreated }) => {
             </Select>
           </FormControl>
 
-          <Button variant="contained" color="primary" onClick={handlePost} disabled={loading}>
+          {/* Submit */}
+          <Button
+            variant="contained"
+            onClick={handlePost}
+            disabled={loading || fetchingCircles || !activeCircleId}
+          >
             {loading ? "Posting..." : "Post"}
           </Button>
         </Box>

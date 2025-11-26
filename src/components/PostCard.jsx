@@ -19,6 +19,7 @@ import axios from 'axios';
 
 const PostCard = ({
   id,
+  title, // ✅ new field
   username,
   time,
   avatarSrc,
@@ -31,7 +32,6 @@ const PostCard = ({
   updatePostComments,
   deletePostFromState,
 }) => {
-  // Fetch user from localStorage
   const storedUser = localStorage.getItem("user");
   const user = storedUser ? JSON.parse(storedUser) : null;
   const userId = user?._id || null;
@@ -46,10 +46,26 @@ const PostCard = ({
   const [likeLoading, setLikeLoading] = useState(false);
   const [commentLoading, setCommentLoading] = useState(false);
 
-  // Image preview handler
+  // Avatar resolver
+  const getAvatar = (profilePhoto, fallbackUser) => {
+    if (profilePhoto) {
+      if (typeof profilePhoto === "string") {
+        if (profilePhoto.startsWith("http")) return profilePhoto;
+        return `http://localhost:5000${profilePhoto}`;
+      }
+      return URL.createObjectURL(profilePhoto);
+    }
+    if (fallbackUser?.profile_photo) {
+      return fallbackUser.profile_photo.startsWith("http")
+        ? fallbackUser.profile_photo
+        : `http://localhost:5000${fallbackUser.profile_photo}`;
+    }
+    return "/default-avatar.png";
+  };
+
+  // Handle image preview
   useEffect(() => {
     if (!image) return;
-
     if (image instanceof File) {
       const url = URL.createObjectURL(image);
       setImagePreview(url);
@@ -59,13 +75,11 @@ const PostCard = ({
     }
   }, [image]);
 
-  // Optimistic Like handler
+  // Like/unlike post
   const handleLike = async () => {
-    if (!userId) return alert("You must be logged in to like posts.");
-    if (likeLoading) return;
+    if (!userId || likeLoading) return;
 
     setLikeLoading(true);
-
     const newLiked = !liked;
     setLiked(newLiked);
     setLikeCount(prev => newLiked ? prev + 1 : prev - 1);
@@ -83,38 +97,31 @@ const PostCard = ({
     }
   };
 
-  // Optimistic Comment / Reply handler
+  // Comment / Reply handler
   const handleCommentSubmit = async () => {
-    if (!userId) return alert("You must be logged in to comment.");
-    if (!commentText.trim() || commentLoading) return;
+    if (!userId || !commentText.trim() || commentLoading) return;
+
+    if (replyToCommentId && replyToCommentId.length !== 24) {
+      console.log("Cannot reply: parent comment not saved yet.");
+      return;
+    }
 
     setCommentLoading(true);
-
-    const tempComment = {
-      _id: Math.random().toString(36).substr(2, 9), // temporary ID
-      user_id: userId,
-      username: user.name,
-      text: commentText,
-      replies: [],
-    };
-
-    setCommentList(prev => [...prev, tempComment]);
-    setCommentText('');
 
     try {
       const url = replyToCommentId
         ? `http://localhost:5000/api/posts/${id}/comment/${replyToCommentId}/reply`
         : `http://localhost:5000/api/posts/${id}/comment`;
 
-      const res = await axios.post(url, { user_id: userId, text: tempComment.text });
+      const res = await axios.post(url, { user_id: userId, text: commentText });
 
       setCommentList(res.data.post.comments);
       updatePostComments(id, res.data.post.comments);
+
+      setCommentText('');
       setReplyToCommentId(null);
     } catch (err) {
-      console.error("Error submitting comment:", err);
-      alert("Failed to submit comment. Rolling back.");
-      setCommentList(prev => prev.filter(c => c._id !== tempComment._id));
+      console.error("Comment failed:", err);
     } finally {
       setCommentLoading(false);
     }
@@ -133,13 +140,26 @@ const PostCard = ({
   };
 
   return (
-    <Card sx={{ mb: 3, borderRadius: 3, boxShadow: 2, width: '100%', maxWidth: '1000px', margin: '1rem auto' }}>
+    <Card
+      sx={{
+        mb: 3,
+        borderRadius: 3,
+        boxShadow: 2,
+        width: '100%',
+        maxWidth: '1000px',
+        margin: '1rem auto',
+        overflow: 'hidden',
+      }}
+    >
       <CardHeader
-        avatar={<Avatar src={avatarSrc} sx={{ width: 55, height: 55 }} />}
-        action={userId === user_id && (
-          <IconButton onClick={handleDeletePost}><DeleteIcon /></IconButton>
-        )}
-        title={<Typography sx={{ fontWeight: 600 }}>{username}</Typography>}
+        avatar={<Avatar src={getAvatar(avatarSrc, user)} sx={{ width: 55, height: 55 }} />}
+        action={userId === user_id && <IconButton onClick={handleDeletePost}><DeleteIcon /></IconButton>}
+        title={
+          <Box>
+            <Typography sx={{ fontWeight: 600 }}>{username}</Typography>
+            {title && <Typography sx={{ fontSize: '1rem', fontWeight: 500, mt: 0.3 }}>{title}</Typography>}
+          </Box>
+        }
         subheader={
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
             <Typography sx={{ fontSize: '0.8rem', color: '#555' }}>{time}</Typography>
@@ -149,10 +169,8 @@ const PostCard = ({
       />
 
       <CardContent sx={{ pt: 0 }}>
-        {content && <Typography sx={{ fontSize: '0.95rem' }}>{content}</Typography>}
-        {imagePreview && (
-          <CardMedia component="img" image={imagePreview} alt="Post" />
-        )}
+        {content && <Typography sx={{ fontSize: '0.95rem', mt: title ? 1 : 0 }}>{content}</Typography>}
+        {imagePreview && <CardMedia component="img" image={imagePreview} alt="Post" sx={{ mt: 1, borderRadius: 2, maxHeight: 500 }} />}
       </CardContent>
 
       <CardContent sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
